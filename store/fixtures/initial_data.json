@@ -1,0 +1,71 @@
+[
+    {
+        "model": "store.category",
+        "pk": 1,
+        "fields": {
+            "name": "Pulses",
+            "icon": "seedling",
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "store.category",
+        "pk": 2,
+        "fields": {
+            "name": "Snacks & Chips",
+            "icon": "cookie",
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "store.category",
+        "pk": 3,
+        "fields": {
+            "name": "Stationery",
+            "icon": "pencil-alt",
+            "created_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "store.product",
+        "pk": 1,
+        "fields": {
+            "name": "Toor Dal",
+            "price": "120.00",
+            "quantity": "1 kg",
+            "image": "https://images.unsplash.com/photo-1585032226651-759b368d7246?auto=format&fit=crop&w=800&q=80",
+            "category": 1,
+            "description": "Premium quality Toor Dal",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "store.product",
+        "pk": 2,
+        "fields": {
+            "name": "Potato Chips",
+            "price": "20.00",
+            "quantity": "100g",
+            "image": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=800&q=80",
+            "category": 2,
+            "description": "Crispy salted potato chips",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    },
+    {
+        "model": "store.product",
+        "pk": 3,
+        "fields": {
+            "name": "Notebook",
+            "price": "40.00",
+            "quantity": "160 pages",
+            "image": "https://images.unsplash.com/photo-1531346878377-a5be20888e57?auto=format&fit=crop&w=800&q=80",
+            "category": 3,
+            "description": "High-quality ruled notebook",
+            "created_at": "2024-01-01T00:00:00Z",
+            "updated_at": "2024-01-01T00:00:00Z"
+        }
+    }
+]
