@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cart - Nanda Karyana Store</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="bg-blue-600 text-white sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex items-center justify-between">
+                <a href="/" class="text-2xl font-bold">Nanda Karyana Store</a>
+                <nav class="hidden md:flex items-center space-x-6">
+                    <a href="/" class="hover:text-gray-200">Home</a>
+                    <a href="#" class="hover:text-gray-200">
+                        <i class="fas fa-shopping-cart mr-2"></i>
+                        Cart <span class="cart-count bg-red-500 text-white text-xs rounded-full px-2 py-1 ml-1">0</span>
+                    </a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold mb-8">Shopping Cart</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Cart Items -->
+            <div class="lg:col-span-2">
+                <div id="cart-items" class="space-y-4">
+                    <!-- Cart items will be dynamically added here -->
+                </div>
+            </div>
+
+            <!-- Order Summary -->
+            <div class="bg-white p-6 rounded-lg shadow-md h-fit">
+                <h2 class="text-xl font-semibold mb-4">Order Summary</h2>
+                <div class="space-y-2 mb-4">
+                    <div class="flex justify-between">
+                        <span>Subtotal</span>
+                        <span id="subtotal">₹ 0</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Delivery</span>
+                        <span>₹ 40</span>
+                    </div>
+                    <div class="border-t pt-2 mt-2">
+                        <div class="flex justify-between font-semibold">
+                            <span>Total</span>
+                            <span id="total">₹ 0</span>
+                        </div>
+                    </div>
+                </div>
+                <button onclick="checkout()" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700">
+                    Proceed to Checkout
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let cartItems = [];
+
+        // Fetch cart items
+        async function fetchCart() {
+            try {
+                const response = await fetch('http://localhost:5000/api/cart');
+                const data = await response.json();
+                cartItems = data;
+                updateCartUI();
+            } catch (error) {
+                console.error('Error fetching cart:', error);
+            }
+        }
+
+        // Remove item from cart
+        async function removeFromCart(productId) {
+            try {
+                const response = await fetch(`http://localhost:5000/api/cart?id=${productId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                cartItems = data.cart;
+                updateCartUI();
+            } catch (error) {
+                console.error('Error removing item:', error);
+            }
+        }
+
+        // Update cart UI
+        function updateCartUI() {
+            const cartItemsContainer = document.getElementById('cart-items');
+            const cartCount = document.querySelector('.cart-count');
+            const subtotal = document.getElementById('subtotal');
+            const total = document.getElementById('total');
+
+            // Update cart count
+            cartCount.textContent = cartItems.length;
+
+            // Clear existing items
+            cartItemsContainer.innerHTML = '';
+
+            // Calculate total
+            let totalAmount = 0;
+
+            // Add items to cart
+            cartItems.forEach(item => {
+                totalAmount += item.price;
+                cartItemsContainer.innerHTML += `
+                    <div class="bg-white p-4 rounded-lg shadow-md">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-4">
+                                <h3 class="font-semibold">${item.name}</h3>
+                                <span class="text-gray-600">${item.quantity}</span>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <span class="font-semibold">₹ ${item.price}</span>
+                                <button onclick="removeFromCart(${item.id})" class="text-red-500 hover:text-red-700">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Update totals
+            subtotal.textContent = `₹ ${totalAmount}`;
+            total.textContent = `₹ ${totalAmount + 40}`; // Adding delivery charge
+        }
+
+        // Checkout function
+        async function checkout() {
+            try {
+                const response = await fetch('http://localhost:5000/api/checkout', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    alert('Order placed successfully!');
+                    window.location.href = '/';
+                } else {
+                    alert(data.error || 'Failed to place order');
+                }
+            } catch (error) {
+                console.error('Error during checkout:', error);
+                alert('Failed to place order');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', fetchCart);
+    </script>
+</body>
+</html>
