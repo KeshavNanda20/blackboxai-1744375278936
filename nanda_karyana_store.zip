@@ -1,0 +1,6 @@
+# This will include the following files:
+- app.py
+- requirements.txt
+- index.html
+- cart.html
+- store/views.py
