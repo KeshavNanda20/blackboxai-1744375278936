@@ -1,0 +1,184 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nanda Karyana Store</title>
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .product-card { transition: transform 0.2s ease-in-out; }
+        .product-card:hover { transform: translateY(-5px); }
+        .category-card { transition: all 0.3s ease; }
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+        .btn-primary {
+            background-color: #3B82F6;
+            transition: all 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #2563EB;
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+    
+    <!-- Navigation -->
+    <nav class="bg-blue-600 text-white sticky top-0 z-50 shadow-md">
+        <div class="container mx-auto px-4 py-3">
+            <div class="flex justify-between items-center">
+                <a href="/" class="text-2xl font-bold flex items-center">
+                    <img src="{% static 'favicon.svg' %}" alt="Logo" class="w-8 h-8 mr-2">
+                    Nanda Karyana Store
+                </a>
+                <div class="flex items-center space-x-6">
+                    <div class="relative">
+                        <input type="text" id="search" placeholder="Search for products..." 
+                               class="px-4 py-2 rounded-lg text-gray-900 w-64 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <i class="fas fa-search absolute right-3 top-3 text-gray-400"></i>
+                    </div>
+                    <a href="/account" class="hover:text-gray-200 flex items-center">
+                        <i class="fas fa-user"></i>
+                        <span class="ml-2">Account</span>
+                    </a>
+                    <a href="/cart" class="hover:text-gray-200 flex items-center relative">
+                        <i class="fas fa-shopping-cart"></i>
+                        <span class="ml-2">Cart</span>
+                        <span id="cart-count" class="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">0</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Products Grid -->
+    <div id="products" class="container mx-auto px-4 py-16">
+        <h2 class="text-3xl font-bold mb-10 text-center">Featured Products</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8" id="products-grid">
+            <!-- Products will be dynamically loaded here -->
+        </div>
+    </div>
+
+    <script>
+        // Get CSRF token
+        const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+
+        // Fetch products from API
+        async function fetchProducts() {
+            try {
+                const response = await fetch('/api/products/');
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const products = await response.json();
+                
+                const productsGrid = document.getElementById('products-grid');
+                productsGrid.innerHTML = products.map(product => `
+                    <div class="product-card bg-white rounded-xl shadow-md overflow-hidden">
+                        <div class="relative h-56">
+                            <img src="${product.image}" alt="${product.name}" 
+                                 class="w-full h-full object-cover hover:opacity-90 transition duration-300">
+                            <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/50 to-transparent p-4">
+                                <h3 class="text-xl font-semibold text-white">${product.name}</h3>
+                                <p class="text-gray-200">${product.quantity}</p>
+                            </div>
+                        </div>
+                        <div class="p-6">
+                            <p class="text-gray-600 mb-4">${product.description}</p>
+                            <div class="flex justify-between items-center">
+                                <span class="text-2xl font-bold text-blue-600">₹${product.price}</span>
+                                <button onclick="addToCart(${product.id})" 
+                                        class="btn-primary text-white px-6 py-2 rounded-lg font-semibold flex items-center">
+                                    <i class="fas fa-shopping-cart mr-2"></i>
+                                    Add
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching products:', error);
+                showNotification('Failed to load products', true);
+            }
+        }
+
+        // Add to cart functionality
+        async function addToCart(productId) {
+            try {
+                console.log('Adding product to cart:', productId);
+                const response = await fetch('/api/cart/add_item/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({
+                        product_id: productId,
+                        quantity: 1
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server response:', errorText);
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Cart updated:', data);
+                updateCartCount(data.items.length);
+                showNotification('Product added to cart!');
+            } catch (error) {
+                console.error('Error adding to cart:', error);
+                showNotification('Failed to add product to cart', true);
+            }
+        }
+
+        // Show notification
+        function showNotification(message, isError = false) {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-4 right-4 px-6 py-3 rounded-lg shadow-lg ${
+                isError ? 'bg-red-500' : 'bg-green-500'
+            } text-white z-50 transform transition-transform duration-300 translate-y-0`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.transform = 'translateY(-100%)';
+                setTimeout(() => document.body.removeChild(notification), 300);
+            }, 2000);
+        }
+
+        // Update cart count
+        function updateCartCount(count) {
+            document.getElementById('cart-count').textContent = count;
+        }
+
+        // Fetch cart on page load
+        async function fetchCart() {
+            try {
+                const response = await fetch('/api/cart/');
+                if (response.ok) {
+                    const data = await response.json();
+                    updateCartCount(data.items.length);
+                }
+            } catch (error) {
+                console.error('Error fetching cart:', error);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchProducts();
+            fetchCart();
+        });
+    </script>
+</body>
+</html>
