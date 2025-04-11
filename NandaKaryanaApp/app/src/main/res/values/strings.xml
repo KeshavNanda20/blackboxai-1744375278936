@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Nanda Karyana Store</string>
+    <string name="search_hint">Search products…</string>
+    <string name="cart">Cart</string>
+    <string name="home">Home</string>
+    <string name="add_to_cart">Add to Cart</string>
+    <string name="remove_from_cart">Remove from Cart</string>
+    <string name="checkout">Proceed to Checkout</string>
+    <string name="empty_cart">Your cart is empty</string>
+    <string name="subtotal">Subtotal</string>
+    <string name="delivery">Delivery</string>
+    <string name="total">Total</string>
+    <string name="currency_symbol">₹</string>
+    <string name="checkout_success">Order placed successfully!</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+</resources>
