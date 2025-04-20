@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request, render_template
+'from flask import Flask, jsonify, request, render_template
 import random
 import os
 import time
@@ -274,6 +274,35 @@ def checkout():
     orders.append(order)
     clear_cart()
     return jsonify({"message": "Order placed successfully", "order": order})
+
+
+@app.route("/api/recommendations")
+def get_recommendations():
+    product_id = request.args.get("product_id", type=int)
+    if not product_id:
+        return jsonify({"error": "product_id parameter is required"}), 400
+
+    # Find the category of the product
+    product_category = None
+    for category, items in products.items():
+        if any(p["id"] == product_id for p in items):
+            product_category = category
+            break
+
+    if not product_category:
+        return jsonify({"error": "Product not found"}), 404
+
+    # Recommend other products from the same category excluding the current product
+    recommended = [p for p in products[product_category] if p["id"] != product_id]
+
+    # Optionally, add some products from other categories for variety (up to 3)
+    other_products = []
+    for category, items in products.items():
+        if category != product_category:
+            other_products.extend(items)
+    recommended.extend(other_products[:3])
+
+    return jsonify(recommended)
 
 
 if __name__ == "__main__":
