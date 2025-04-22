@@ -1,8 +1,29 @@
-from flask import Flask, jsonify, request, render_template
+'from flask import Flask, jsonify, request, render_template
+import random
+import os
+import time
+from twilio.rest import Client
+
+# Twilio configuration
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID', 'your_account_sid')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN', 'your_auth_token') 
+TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER', '+1234567890')
+client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+import random
+import os
+from twilio.rest import Client
 from flask_cors import CORS
 from datetime import datetime
 
 app = Flask(__name__, static_folder=".", static_url_path="", template_folder=".")
+
+# OTP storage with expiration (production: replace with database)
+otp_storage = {}
+rate_limit = {}  # Track failed attempts
+
+# Configuration
+OTP_EXPIRY = 300  # 5 minutes in seconds
+MAX_ATTEMPTS = 3  # Max verification attempts
 CORS(app)
 
 # Sample database (we'll replace this with a proper database later)
@@ -148,6 +169,79 @@ def get_products():
     return jsonify(products)
 
 
+@app.route("/api/send-otp", methods=["POST"])
+def send_otp():
+    data = request.json
+    phone = data.get("phone")
+    
+    if not phone:
+        return jsonify({"error": "Phone number is required"}), 400
+
+    # Clear previous OTP if exists
+    if phone in otp_storage:
+        del otp_storage[phone]
+
+    otp = str(random.randint(100000, 999999))
+    otp_storage[phone] = {
+        "code": otp,
+        "timestamp": time.time(),
+        "attempts": 0
+    }
+    
+    # For testing without Twilio credentials
+    # For production, do not return the OTP in the response
+    return jsonify({"message": "OTP sent successfully"})
+
+@app.route("/api/verify-otp", methods=["POST"])
+def verify_otp():
+    data = request.json
+    phone = data.get("phone")
+    otp = data.get("otp")
+    
+    if not phone or not otp:
+        return jsonify({"error": "Phone and OTP are required"}), 400
+
+    # Check if OTP exists and is not expired
+    if phone not in otp_storage:
+        return jsonify({"error": "OTP expired or not requested"}), 401
+        
+    stored_data = otp_storage[phone]
+    
+    # Check expiration
+    if time.time() - stored_data["timestamp"] > OTP_EXPIRY:
+        del otp_storage[phone]
+        return jsonify({"error": "OTP expired"}), 401
+        
+    # Check rate limiting
+    if stored_data["attempts"] >= MAX_ATTEMPTS:
+        return jsonify({"error": "Too many attempts"}), 429
+        
+    # Verify OTP
+    if stored_data["code"] == otp:
+        del otp_storage[phone]
+        return jsonify({"message": "OTP verified successfully"})
+    else:
+        otp_storage[phone]["attempts"] += 1
+        remaining = MAX_ATTEMPTS - otp_storage[phone]["attempts"]
+        return jsonify({
+            "error": "Invalid OTP",
+            "remaining_attempts": remaining
+        }), 401
+
+@app.route("/product/<int:product_id>")
+def product_details(product_id):
+    # Search through all categories for the product
+    for category in products.values():
+        for product in category:
+            if product["id"] == product_id:
+                return render_template("product_details.html", product=product)
+    return "Product not found", 404
+
+# Temporary test route
+@app.route("/test_product")
+def test_product():
+    return str([p["id"] for category in products.values() for p in category])
+
 @app.route("/api/cart", methods=["GET", "POST", "DELETE"])
 def manage_cart():
     if request.method == "GET":
@@ -180,6 +274,35 @@ def checkout():
     orders.append(order)
     clear_cart()
     return jsonify({"message": "Order placed successfully", "order": order})
+
+
+@app.route("/api/recommendations")
+def get_recommendations():
+    product_id = request.args.get("product_id", type=int)
+    if not product_id:
+        return jsonify({"error": "product_id parameter is required"}), 400
+
+    # Find the category of the product
+    product_category = None
+    for category, items in products.items():
+        if any(p["id"] == product_id for p in items):
+            product_category = category
+            break
+
+    if not product_category:
+        return jsonify({"error": "Product not found"}), 404
+
+    # Recommend other products from the same category excluding the current product
+    recommended = [p for p in products[product_category] if p["id"] != product_id]
+
+    # Optionally, add some products from other categories for variety (up to 3)
+    other_products = []
+    for category, items in products.items():
+        if category != product_category:
+            other_products.extend(items)
+    recommended.extend(other_products[:3])
+
+    return jsonify(recommended)
 
 
 if __name__ == "__main__":
