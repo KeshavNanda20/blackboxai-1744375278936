@@ -10,4 +10,7 @@ router.register(r'orders', views.OrderViewSet, basename='order')
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('recommended-products/', views.recommended_products, name='recommended-products'),
+    path('apriori-recommendations/', views.apriori_recommendations, name='apriori-recommendations'),
 ]
+
