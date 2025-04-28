@@ -13,6 +13,59 @@ from .serializers import (
     CategorySerializer, ProductSerializer, CartSerializer,
     CartItemSerializer, OrderSerializer
 )
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
+from django.db.models import Count
+from .apriori import apriori, generate_association_rules
+from .models import Order, Product
+from .serializers import ProductSerializer
+
+# Existing imports and classes...
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def apriori_recommendations(request):
+    min_support = float(request.query_params.get('min_support', 0.5))
+    min_confidence = float(request.query_params.get('min_confidence', 0.7))
+
+    # Get all orders and extract product IDs per order
+    transactions = []
+    orders = Order.objects.prefetch_related('items').all()
+    for order in orders:
+        product_ids = [item.product.id for item in order.items.all()]
+        if product_ids:
+            transactions.append(product_ids)
+
+    # Run Apriori algorithm
+    frequent_itemsets = apriori(transactions, min_support=min_support)
+    rules = generate_association_rules(frequent_itemsets, min_confidence=min_confidence)
+
+    # Prepare recommendations: for each antecedent, recommend consequents
+    recommendations = {}
+    for antecedent, consequent, confidence in rules:
+        for item in antecedent:
+            if item not in recommendations:
+                recommendations[item] = set()
+            recommendations[item].update(consequent)
+
+    # If product_id provided, return recommendations for that product
+    product_id = request.query_params.get('product_id')
+    if product_id:
+        product_id = int(product_id)
+        recommended_ids = list(recommendations.get(product_id, []))
+        recommended_products = Product.objects.filter(id__in=recommended_ids)
+    else:
+        # Return top recommended products overall
+        all_recommended_ids = set()
+        for recs in recommendations.values():
+            all_recommended_ids.update(recs)
+        recommended_products = Product.objects.filter(id__in=all_recommended_ids)
+
+    serializer = ProductSerializer(recommended_products, many=True)
+    return Response(serializer.data)
+
+# Add this view to router or urlpatterns as needed
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.all()
@@ -143,7 +196,11 @@ class OrderViewSet(viewsets.ModelViewSet):
         if not cart.items.exists():
             return Response({'error': 'Cart is empty'}, status=status.HTTP_400_BAD_REQUEST)
 
-        order = Order.objects.create(user=request.user, total=cart.get_total())
+        delivery_address = request.data.get('delivery_address')
+        if not delivery_address:
+            return Response({'error': 'Delivery address is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        order = Order.objects.create(user=request.user, total=cart.get_total(), delivery_address=delivery_address)
 
         for cart_item in cart.items.all():
             order.items.create(
@@ -153,8 +210,71 @@ class OrderViewSet(viewsets.ModelViewSet):
             )
 
         cart.items.all().delete()
+
+        # Send email and WhatsApp notification
+        from django.core.mail import send_mail
+        import os
+        from twilio.rest import Client
+
+        # Email sending
+        subject = f"New Order #{order.id} from {request.user.username}"
+        message = f"Order Details:\nOrder ID: {order.id}\nUser: {request.user.username}\nDelivery Address:\n{delivery_address}\nTotal: {order.total}"
+        recipient_list = ['keshavnanda.0087@gmail.com']
+        send_mail(subject, message, os.environ.get('EMAIL_HOST_USER'), recipient_list)
+
+        # WhatsApp sending via Twilio
+        try:
+            account_sid = os.environ.get('TWILIO_ACCOUNT_SID')
+            auth_token = os.environ.get('TWILIO_AUTH_TOKEN')
+            client = Client(account_sid, auth_token)
+            whatsapp_message = client.messages.create(
+                body=message,
+                from_='whatsapp:+14155238886',  # Twilio sandbox WhatsApp number
+                to='whatsapp:+918699984018'
+            )
+        except Exception as e:
+            # Log error but do not block order creation
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"WhatsApp message failed: {str(e)}")
+
         serializer = OrderSerializer(order)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def accept_order(self, request, pk=None):
+        # Admin accepts the order
+        order = self.get_object()
+        if not request.user.is_staff:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        order.status = 'processing'
+        order.save()
+        return Response({'status': 'Order accepted'})
+
+    @action(detail=True, methods=['get'], permission_classes=[IsAuthenticated])
+    def tracking(self, request, pk=None):
+        order = self.get_object()
+        if order.user != request.user:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        tracking_info = {
+            'order_id': order.id,
+            'status': order.status,
+            'delivery_address': order.delivery_address,
+            'estimated_delivery': '3-5 business days'  # Placeholder
+        }
+        return Response(tracking_info)
+
+    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated])
+    def rate(self, request, pk=None):
+        order = self.get_object()
+        if order.user != request.user:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        rating = request.data.get('rating')
+        if not rating or not (1 <= int(rating) <= 5):
+            return Response({'error': 'Rating must be an integer between 1 and 5'}, status=status.HTTP_400_BAD_REQUEST)
+        order.rating = int(rating)
+        order.save()
+        return Response({'status': 'Rating submitted'})
 
 @ensure_csrf_cookie
 def index(request):
